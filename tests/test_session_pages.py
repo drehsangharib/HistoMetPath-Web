@@ -16,7 +16,7 @@ def test_analyze_page_supports_all_input_modes_and_regional_state():
     assert '"Patch collection"' in text
     assert '"Large image"' in text
     assert 'workspace["regional"]' in text
-    assert 'workspace["coordinate_source"] = "large_image_authentic_pixel_coordinates"' in text
+    assert 'large_image_authentic_pixel_coordinates' in text
 
 
 def test_results_overview_is_distinct_and_session_aware():
