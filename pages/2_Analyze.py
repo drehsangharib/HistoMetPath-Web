@@ -6,7 +6,13 @@ import streamlit as st
 
 from histometpath_web.inference import decode_uploaded_image, load_inference_model, predict_image
 from histometpath_web.model_acquisition import acquire_model
-from histometpath_web.regional_analysis import TileConfig, decode_large_image, extract_tiles, spatial_coverage_summary
+from histometpath_web.regional_analysis import (
+    TileConfig,
+    decode_large_image,
+    extract_tiles,
+    spatial_coverage_summary,
+    inspect_large_image,
+)
 from histometpath_web.workspace import collection_frame, ensure_workspace, generated_qa_grid, image_sha256
 from histometpath_web.ui import configure, footer
 
@@ -92,6 +98,13 @@ else:
         data = upload.getvalue()
 
         try:
+            large_image_preflight = inspect_large_image(data)
+            st.caption(
+                f"Preflight: {large_image_preflight['width']:,} x "
+                f"{large_image_preflight['height']:,} pixels, "
+                f"{large_image_preflight['megapixels']:.1f} MP, estimated base RGB "
+                f"{large_image_preflight['estimated_rgb_bytes'] / 1048576:.1f} MB."
+            )
             preview_image = decode_large_image(data)
             tiles_across = (
                 ((preview_image.width - 96) // stride) + 1

@@ -13,6 +13,7 @@ from PIL import Image, ImageStat
 
 TILE_SIZE = 96
 MAX_DECODED_PIXELS = 40_000_000
+MAX_BASE_DECODED_BYTES = 160 * 1024 * 1024
 MAX_TILES = 1_000
 
 
@@ -25,16 +26,56 @@ class TileConfig:
     minimum_intensity_std: float = 5.0
 
 
-def decode_large_image(data: bytes) -> Image.Image:
+def inspect_large_image(data: bytes) -> dict:
+    """Inspect image headers and enforce resource limits before full decoding."""
     if not data:
         raise ValueError("Uploaded image is empty.")
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            width, height = image.size
+            image_format = image.format
+            mode = image.mode
+    except Exception as error:
+        raise ValueError(f"Could not inspect image header: {error}") from error
+
+    pixels = int(width) * int(height)
+    megapixels = pixels / 1_000_000
+    estimated_rgb_bytes = pixels * 3
+    info = {
+        "width": int(width),
+        "height": int(height),
+        "pixels": pixels,
+        "megapixels": megapixels,
+        "compressed_bytes": len(data),
+        "estimated_rgb_bytes": estimated_rgb_bytes,
+        "format": image_format,
+        "mode": mode,
+    }
+    if pixels > MAX_DECODED_PIXELS:
+        raise ValueError(
+            f"This image is {megapixels:.1f} megapixels ({width:,} x {height:,}), "
+            f"exceeding the deployed {MAX_DECODED_PIXELS / 1_000_000:.1f}-megapixel "
+            "safety limit. The compressed file may be below 25 MB while decoded "
+            "memory is much larger. Resize or crop the image, or use the controlled "
+            "local workflow."
+        )
+    if estimated_rgb_bytes > MAX_BASE_DECODED_BYTES:
+        raise ValueError(
+            f"The estimated base RGB footprint is {estimated_rgb_bytes / 1048576:.1f} MB, "
+            f"exceeding the deployed {MAX_BASE_DECODED_BYTES / 1048576:.0f} MB "
+            "memory-safety limit. Resize or crop the image, or use the controlled "
+            "local workflow."
+        )
+    return info
+
+
+def decode_large_image(data: bytes) -> Image.Image:
+    inspect_large_image(data)
     try:
         image = Image.open(io.BytesIO(data))
         image.load()
     except Exception as error:
         raise ValueError(f"Could not decode image: {error}") from error
-    if image.width * image.height > MAX_DECODED_PIXELS:
-        raise ValueError(f"Decoded image exceeds the {MAX_DECODED_PIXELS:,}-pixel safety limit.")
     return image.convert("RGB")
 
 
